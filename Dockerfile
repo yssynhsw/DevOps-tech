@@ -1,26 +1,20 @@
-# Dockerfile optimisé
-FROM eclipse-temurin:21-jdk-alpine AS builder
-# Étape de build séparée pour réduire la taille de l'image finale
+# Dockerfile qui fonctionne à coup sûr
+FROM maven:3.9.6-eclipse-temurin-22 AS build
 WORKDIR /app
-COPY target/student-management-*.jar app.jar
-# Étape d'exécution (plus légère)
-FROM eclipse-temurin:17-jre-alpine
-# Variables d'environnement
-ENV JAVA_OPTS="-Xmx512m -Xms256m"
-ENV SPRING_PROFILES_ACTIVE="docker"
-# Créer un utilisateur non-root
-RUN addgroup -S spring && adduser -S spring -G spring
-# Répertoire de travail
+# Copier les fichiers Maven d'abord (cache des dépendances)
+COPY pom.xml .
+RUN mvn dependency:go-offline
+# Copier le code source
+COPY src ./src
+# Build l'application
+RUN mvn clean package -DskipTests
+# Runtime
+FROM eclipse-temurin:22-jre-jammy
 WORKDIR /app
-# Copier le jar depuis l'étape de build
-COPY --from=builder /app/app.jar app.jar
-# Changer les permissions
-RUN chown -R spring:spring /app
-USER spring:spring
-# Port exposé
+# Copier le JAR depuis l'étape build
+COPY --from=build /app/target/*.jar app.jar
+# Utilisateur non-root
+RUN useradd -m appuser && chown -R appuser:appuser /app
+USER appuser
 EXPOSE 8080
-# Health check (pour vérifier si l'application est en bonne santé)
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1
-# Point d'entrée avec variables d'environnement
-ENTRYPOINT ["sh", "-c", "java ${JAVA_OPTS} -jar /app/app.jar"]
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]
