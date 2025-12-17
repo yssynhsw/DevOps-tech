@@ -91,20 +91,21 @@ pipeline {
                         exit 1
                     )
                 '''
-            }
 
-            post {
-                success {
-                    // Archiver le JAR
-                    archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
-
-                    // Stocker le nom du JAR dans une variable
-                    script {
+                // Archive artifacts only after successful packaging
+                script {
+                    if (fileExists('target')) {
                         def jarFiles = findFiles(glob: 'target/*.jar')
                         if (jarFiles.length > 0) {
+                            archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
                             env.JAR_FILENAME = jarFiles[0].name
                             echo "JAR archived: ${env.JAR_FILENAME}"
+                        } else {
+                            echo 'No JAR files found to archive.'
+                            error('Packaging reported success but no JAR was found.')
                         }
+                    } else {
+                        error('Target directory missing after packaging.')
                     }
                 }
             }
@@ -326,7 +327,6 @@ pipeline {
         always {
             echo '🧹 Performing cleanup...'
             script {
-                // Nettoyer les conteneurs Docker temporaires
                 bat '''
                     echo "Cleaning up Docker containers..."
                     for /f "tokens=*" %%i in ('docker ps -aq --filter "name=test-student-management"') do (
@@ -338,7 +338,7 @@ pipeline {
                     docker system prune -f 2>nul
 
                     echo "=== FINAL DOCKER STATE ==="
-                    docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | findstr "student"
+                    docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | findstr "student" || echo "No student containers present"
                 '''
 
                 // Nettoyer le workspace Jenkins
