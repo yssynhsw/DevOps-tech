@@ -24,7 +24,7 @@ pipeline {
                     $class: 'GitSCM',
                     branches: [[name: '*/main']],
                     userRemoteConfigs: [[
-                        url: 'https://github.com/yssynhsw/DevOps-by-yssynhsw.git',
+                        url: 'https://github.com/yssynhsw/DevOps-tech.git',
                         credentialsId: 'yssynhsw-gitaccess'
                     ]]
                 ])
